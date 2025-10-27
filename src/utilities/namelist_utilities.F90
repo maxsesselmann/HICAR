@@ -393,7 +393,7 @@ contains
         integer, optional, intent(inout) :: i
         logical, optional :: no_check
 
-        character(len=kMAX_STRING_LENGTH) :: group, default, description, units
+        character(len=(kMAX_STRING_LENGTH*8)) :: group, default, description, units
         real :: min, max
         integer, allocatable :: values(:), var_dims(:), sanitized_dims(:), ref_var_dims(:)
         integer :: p, dim_indx, dim_len, type, n, cnt, varid, san_dim_indx
@@ -631,7 +631,7 @@ contains
         character(len=*), optional, intent(in) :: usr_default
         
 
-        character(len=kMAX_STRING_LENGTH) :: group, default, description, units
+        character(len=(kMAX_STRING_LENGTH*8)) :: group, default, description, units
         real :: min, max
         integer, allocatable :: values(:), var_dims(:), hgt_var_dims(:)
         integer :: i, dim_indx, dim_len, type
@@ -1103,7 +1103,7 @@ contains
         implicit none
         character(len=*), intent(in) :: name
 
-        character(len=kMAX_STRING_LENGTH) :: group, default, description, units
+        character(len=(kMAX_STRING_LENGTH*8)) :: group, default, description, units
         character(len=1), allocatable :: dimensions(:)
         real :: min, max
         integer :: type
@@ -1120,7 +1120,7 @@ contains
         implicit none
         character(len=*), intent(in) :: name
 
-        character(len=kMAX_STRING_LENGTH) :: group, default, description, units
+        character(len=(kMAX_STRING_LENGTH*8)) :: group, default, description, units
         character(len=1), allocatable :: dimensions(:)
         real :: min, max
         integer :: type
@@ -1135,7 +1135,7 @@ contains
         character(len=*), intent(in) :: name
         logical,          intent(in), optional :: info, gen_nml
 
-        character(len=kMAX_STRING_LENGTH) :: group, default, description, units
+        character(len=(kMAX_STRING_LENGTH*8)) :: group, default, description, units
         character(len=1), allocatable :: dimensions(:)
         real :: min, max
         integer :: type
@@ -1156,7 +1156,7 @@ contains
         implicit none
         character(len=*), intent(in) :: name
 
-        character(len=kMAX_STRING_LENGTH) :: group, default, description, units
+        character(len=(kMAX_STRING_LENGTH*8)) :: group, default, description, units
         character(len=1), allocatable :: dimensions(:)
         real :: min, max
         integer :: type
