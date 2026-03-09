@@ -1214,8 +1214,7 @@ contains
                   froude => domain%vars_3d(domain%var_indx(kVARS%froude)%v)%data_3d, &
                   blk_ri => domain%vars_3d(domain%var_indx(kVARS%blk_ri)%v)%data_3d, &
                   z => domain%vars_3d(domain%var_indx(kVARS%z)%v)%data_3d, &
-                  potential_temperature => domain%vars_3d(domain%var_indx(kVARS%potential_temperature)%v)%data_3d, &
-                  froude_terrain => domain%vars_4d(domain%var_indx(kVARS%froude_terrain)%v)%data_4d)
+                  potential_temperature => domain%vars_3d(domain%var_indx(kVARS%potential_temperature)%v)%data_3d)
         !$acc data present(u, v, froude, blk_ri, z, potential_temperature) create(u_m,v_m,u_shear,v_shear,winddir,wind_speed,stability)
 
         !$acc kernels
@@ -1260,8 +1259,9 @@ contains
         enddo
 
 
-        if (options%wind%alpha_const<0 .and. (options%physics%windtype==kITERATIVE_WINDS)) then
-
+        if (options%wind%alpha_const<0 .and. (options%physics%windtype==kITERATIVE_WINDS) .and. &
+            domain%var_indx(kVARS%froude_terrain)%v > 0) then
+        associate(froude_terrain => domain%vars_4d(domain%var_indx(kVARS%froude_terrain)%v)%data_4d)
 
             ubound_terrain = ubound(froude_terrain,4)
             !Compute wind direction for each cell on mass grid
@@ -1318,6 +1318,7 @@ contains
                     enddo
                 enddo
             enddo
+        end associate
         endif
         !$acc end data
         end associate
