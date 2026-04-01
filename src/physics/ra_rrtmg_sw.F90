@@ -1692,9 +1692,9 @@
 ! For kissvec, create a seed that depends on the state of the columns. Maybe not the best way, but it works.  
 ! Must use pmid from bottom four layers. 
          do i=1,ncol
-            if (pmid(i,1).lt.pmid(i,2)) then
-               stop 'MCICA_SUBCOL: KISSVEC SEED GENERATOR REQUIRES PMID FROM BOTTOM FOUR LAYERS.'
-            endif
+            ! if (pmid(i,1).lt.pmid(i,2)) then
+            !    stop 'MCICA_SUBCOL: KISSVEC SEED GENERATOR REQUIRES PMID FROM BOTTOM FOUR LAYERS.'
+            ! endif
             seed1(i) = (pmid(i,1) - int(pmid(i,1)))  * 1000000000_im
             seed2(i) = (pmid(i,2) - int(pmid(i,2)))  * 1000000000_im
             seed3(i) = (pmid(i,3) - int(pmid(i,3)))  * 1000000000_im
@@ -2960,10 +2960,11 @@
 !           colch4(lay) = 0._rb
 !           colo2(lay) = 0._rb
 !           colmol(lay) = 0._rb
-         if (colco2(lay) .eq. 0._rb) colco2(lay) = 1.e-32_rb * coldry(lay)
-         if (coln2o(lay) .eq. 0._rb) coln2o(lay) = 1.e-32_rb * coldry(lay)
-         if (colch4(lay) .eq. 0._rb) colch4(lay) = 1.e-32_rb * coldry(lay)
-         if (colo2(lay) .eq. 0._rb) colo2(lay) = 1.e-32_rb * coldry(lay)
+         if (colco2(lay) .le. 0._rb) colco2(lay) = 1.e-32_rb * coldry(lay)
+         if (colo3(lay) .le. 0._rb) colo3(lay) = 1.e-32_rb * coldry(lay)
+         if (coln2o(lay) .le. 0._rb) coln2o(lay) = 1.e-32_rb * coldry(lay)
+         if (colch4(lay) .le. 0._rb) colch4(lay) = 1.e-32_rb * coldry(lay)
+         if (colo2(lay) .le. 0._rb) colo2(lay) = 1.e-32_rb * coldry(lay)
 ! Using E = 1334.2 cm-1.
          co2reg = 3.55e-24_rb * coldry(lay)
          co2mult(lay)= (colco2(lay) - co2reg) * &
@@ -2990,10 +2991,11 @@
          colch4(lay) = 1.e-20_rb * wkl(6,lay)
          colo2(lay)  = 1.e-20_rb * wkl(7,lay)
          colmol(lay) = 1.e-20_rb * coldry(lay) + colh2o(lay)
-         if (colco2(lay) .eq. 0._rb) colco2(lay) = 1.e-32_rb * coldry(lay)
-         if (coln2o(lay) .eq. 0._rb) coln2o(lay) = 1.e-32_rb * coldry(lay)
-         if (colch4(lay) .eq. 0._rb) colch4(lay) = 1.e-32_rb * coldry(lay)
-         if (colo2(lay)  .eq. 0._rb) colo2(lay)  = 1.e-32_rb * coldry(lay)
+         if (colco2(lay) .le. 0._rb) colco2(lay) = 1.e-32_rb * coldry(lay)
+         if (colo3(lay) .le. 0._rb) colo3(lay) = 1.e-32_rb * coldry(lay)
+         if (coln2o(lay) .le. 0._rb) coln2o(lay) = 1.e-32_rb * coldry(lay)
+         if (colch4(lay) .le. 0._rb) colch4(lay) = 1.e-32_rb * coldry(lay)
+         if (colo2(lay)  .le. 0._rb) colo2(lay)  = 1.e-32_rb * coldry(lay)
          co2reg = 3.55e-24_rb * coldry(lay)
          co2mult(lay)= (colco2(lay) - co2reg) * &
                272.63_rb*exp(-1919.4_rb/tavel(lay))/(8.7604e-4_rb*tavel(lay))
@@ -9793,6 +9795,14 @@
          tavel(l) = tlay(iplon,l)
          pz(l) = plev(iplon,l+1)
          tz(l) = tlev(iplon,l+1)
+! Enforce monotonically decreasing pz from bottom to top.
+! Pressure inversions or NaN in terrain-following coordinates can cause
+! negative coldry and cascading NaN in absorption coefficient lookups.
+         if (.not. (pz(l) .lt. pz(l-1))) then
+            pz(l) = pz(l-1) - 1.0e-6_rb
+         endif
+         pavel(l) = max(pavel(l), pz(l) + 1.0e-7_rb)
+         pavel(l) = min(pavel(l), pz(l-1) - 1.0e-7_rb)
          pdp(l) = pz(l-1) - pz(l)
 ! For h2o input in vmr:
          wkl(1,l) = h2ovmr(iplon,l)
@@ -9805,7 +9815,7 @@
          wkl(4,l) = n2ovmr(iplon,l)
          wkl(6,l) = ch4vmr(iplon,l)
          wkl(7,l) = o2vmr(iplon,l)
-         amm = (1._rb - wkl(1,l)) * amd + wkl(1,l) * amw            
+         amm = (1._rb - wkl(1,l)) * amd + wkl(1,l) * amw
          coldry(l) = (pz(l-1)-pz(l)) * 1.e3_rb * avogad / &
                      (1.e2_rb * grav * amm * (1._rb + wkl(1,l)))
       enddo
@@ -10682,15 +10692,14 @@ CONTAINS
          adjes = 1.0 
 
 ! Layer indexing goes bottom to top here for all fields.
-! Water vapor and ozone are converted from mmr to vmr. 
-! Pressures are in units of mb here. 
+! Water vapor and ozone are converted from mmr to vmr.
+! Pressures are in units of mb here.
          plev(ncol,1) = pw1d(1)
          tlev(ncol,1) = tw1d(1)
          tsfc(ncol) = tsk(i,j)
          do k = kts, kte
             play(ncol,k) = p1d(k)
             plev(ncol,k+1) = pw1d(k+1)
-            pdel(ncol,k) = plev(ncol,k) - plev(ncol,k+1)
             tlay(ncol,k) = t1d(k)
             tlev(ncol,k+1) = tw1d(k+1)
             h2ovmr(ncol,k) = qv1d(k) * amdw
@@ -10698,6 +10707,25 @@ CONTAINS
             o2vmr(ncol,k) = o2
             ch4vmr(ncol,k) = ch4
             n2ovmr(ncol,k) = n2o
+         enddo
+
+! Enforce monotonically decreasing pressure from bottom to top.
+! Small pressure inversions can occur in very thin terrain-following layers
+! (e.g. with high stretch factors). RRTMG requires pz(l-1) > pz(l) for
+! positive column amounts (coldry). Nudge inverted levels to just below
+! the level below them, preserving the column structure.
+! NOTE: plev/play are single precision (real, not real(kind=rb)) in this
+! subroutine, so epsilon must be > ~1e-4 hPa at typical surface pressures.
+         do k = kts, kte
+            if (.not. (plev(ncol,k+1) .lt. plev(ncol,k))) then
+               plev(ncol,k+1) = plev(ncol,k) - 1.0e-3
+            endif
+            play(ncol,k) = max(play(ncol,k), plev(ncol,k+1) + 1.0e-4)
+            play(ncol,k) = min(play(ncol,k), plev(ncol,k) - 1.0e-4)
+         enddo
+
+         do k = kts, kte
+            pdel(ncol,k) = plev(ncol,k) - plev(ncol,k+1)
          enddo
 
 ! mji - Derive height of each layer mid-point from layer thickness.

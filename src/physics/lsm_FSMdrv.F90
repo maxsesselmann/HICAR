@@ -677,7 +677,7 @@ contains
         !call domain%halo%batch_exch(domain%exch_vars, domain%adv_vars, two_d=.True.)
         !call domain%halo%batch_exch(domain%exch_vars, domain%adv_vars, two_d=.False.,exch_var_only=.True.)      
 
-        if (corners) call domain%halo%exch_var(domain%vars_2d(domain%var_indx(kVARS%Ds)%v),corners=corners)
+        if (corners) call domain%halo%exch_var(domain%vars_3d(domain%var_indx(kVARS%Ds)%v),corners=corners)
         if (corners) call domain%halo%exch_var(domain%vars_2d(domain%var_indx(kVARS%fsnow)%v),corners=corners)
 
         fsnow = TRANSPOSE(domain%vars_2d(domain%var_indx(kVARS%fsnow)%v)%data_2d(its:ite,jts:jte))

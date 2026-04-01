@@ -237,11 +237,10 @@ contains
 
             associate(tend_u => domain%tend%u, tend_v => domain%tend%v, tend_th_pbl => domain%tend%th_pbl, &
                       tend_qv_pbl => domain%tend%qv_pbl, tend_qc_pbl => domain%tend%qc_pbl, tend_qi_pbl => domain%tend%qi_pbl, &
-                      tend_th_lwrad => domain%tend%th_lwrad, tend_th_swrad => domain%tend%th_swrad, &
                       u_10m => domain%vars_2d(domain%var_indx(kVARS%u_10m)%v)%data_2d, &
                       v_10m => domain%vars_2d(domain%var_indx(kVARS%v_10m)%v)%data_2d)
             !$acc parallel present(tend_u, tend_v, tend_th_pbl, tend_qv_pbl, tend_qc_pbl, tend_qi_pbl, &
-            !$acc &               tend_th_lwrad, tend_th_swrad, u_10m, v_10m, windspd,RTHRATEN,regime) copyin(kVARS)
+            !$acc &               u_10m, v_10m, windspd,RTHRATEN,regime) copyin(kVARS)
             !$acc loop gang vector collapse(3)
             do j = jms,jme
             do k = kms,kme
@@ -263,7 +262,17 @@ contains
                 if (windspd(i,j)==0) windspd(i,j)=1e-5
             enddo
             enddo
-            ! if (options%physics%radiation==kRA_RRTMG) then
+            !$acc end parallel
+
+            end associate
+
+            ! Only compute RTHRATEN from radiation tendencies if they are allocated
+            ! (i.e. when using RRTMG/RRTMGP). For basic/simple radiation, RTHRATEN
+            ! stays at 0 (initialized in pbl_init), which is correct since these
+            ! schemes don't compute 3D heating rate profiles.
+            if (options%physics%radiation==kRA_RRTMG .or. options%physics%radiation==kRA_RRTMGP) then
+                associate(tend_th_lwrad => domain%tend%th_lwrad, tend_th_swrad => domain%tend%th_swrad)
+                !$acc parallel present(tend_th_lwrad, tend_th_swrad, RTHRATEN)
                 !$acc loop gang vector collapse(3)
                 do j = jms,jme
                 do k = kms,kme
@@ -272,10 +281,9 @@ contains
                 enddo
                 enddo
                 enddo
-            ! endif
-            !$acc end parallel
-
-            end associate
+                !$acc end parallel
+                end associate
+            endif
 
             call ysu_gpu(u3d=domain%vars_3d(domain%var_indx(kVARS%u_mass)%v)%data_3d                           & !-- u3d         3d u-velocity interpolated to theta points (m/s)
                     ,v3d=domain%vars_3d(domain%var_indx(kVARS%v_mass)%v)%data_3d                           & !-- v3d         3d v-velocity interpolated to theta points (m/s)

@@ -315,7 +315,7 @@ contains
         implicit none
         type(options_t), intent(inout) :: options
 
-        if (options%physics%radiation == kRA_SIMPLE) then
+        if (options%physics%radiation == kRA_BASIC .or. options%physics%radiation == kRA_SIMPLE) then
             call ra_simple_var_request(options)
         endif
 
@@ -341,10 +341,21 @@ contains
         type(options_t), intent(inout) :: options
 
 
-        ! List the variables that are required to be allocated for the simple radiation code
+        ! Variables used directly by ra_simple (lines 699-716):
+        !   pressure, potential_temperature, exner, cloud_fraction, shortwave, longwave,
+        !   cosine_zenith_angle, water_vapor, cloud_water_mass, snow_mass, ice_mass,
+        !   graupel_mass, rain_mass (last 5 provided by microphysics)
+        ! Additional variables required by the shared associate block (lines 521-546)
+        ! to prevent index crashes when var_indx%v == -1 for variables only requested by RRTMG:
         call options%alloc_vars( &
-                     [kVARS%pressure,    kVARS%potential_temperature,   kVARS%exner,        kVARS%cloud_fraction,   &
-                      kVARS%shortwave,   kVARS%longwave, kVARS%cosine_zenith_angle])
+                     [kVARS%pressure,     kVARS%pressure_interface,    kVARS%potential_temperature,   kVARS%exner,            &
+                      kVARS%shortwave,    kVARS%shortwave_direct,      kVARS%shortwave_diffuse,       kVARS%longwave,         &
+                      kVARS%out_longwave_rad,                          kVARS%cloud_fraction,                                  &
+                      kVARS%land_mask,    kVARS%dz_interface,          kVARS%temperature,              kVARS%density,          &
+                      kVARS%temperature_interface,                     kVARS%land_emissivity,                                  &
+                      kVARS%cosine_zenith_angle,                       kVARS%albedo,                                           &
+                      kVARS%water_vapor,  kVARS%cloud_water_mass,      kVARS%ice_mass,                 kVARS%snow_mass,        &
+                      kVARS%re_cloud,     kVARS%re_ice,                kVARS%re_snow])
 
         ! List the variables that are required to be advected for the simple radiation code
         call options%advect_vars( &
