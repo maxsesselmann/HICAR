@@ -1098,7 +1098,8 @@ do j = jts,jte
        dthvx(i,j)  = max(thvx(i,k+1,j)-thvx(i,k,j),tmin)
        we(i,j) = max(bfxpbl(i,j)/dthvx(i,j),-sqrt(wm2(i,j)))
        if((qc3d(i,k,j)+qi3d(i,k,j)).gt.0.01e-3.and.ysu_topdown_pblmix.eq.1)then
-           if ( kpbl(i,j) .ge. 2) then
+           !bounds check for cloud top entrainment
+           if ( kpbl(i,j) .ge. 2 .and. kpbl(i,j) .le. kte-1) then
                 cloudflg(i,j)=.true. 
                 templ=thlix(i,k,j)*(pdhi(i,k+1,j)/100000)**rovcp
                 !rvls is ws at full level
