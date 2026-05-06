@@ -581,6 +581,10 @@ CONTAINS
       endif!
 ! ... paj: compute integrated similarity functions.
 !
+! Clamp z/L to prevent integer overflow in lookup tables
+! and keep within MO similarity validity range
+        zol(I,J) = MAX(MIN(zol(I,J), 10.), -10.)
+
         zolzz=zol(I,J)*(ZA+znt(I,J))/ZA ! (z+z0/L
         zol10=zol(I,J)*(10.+znt(I,J))/ZA   ! (10+z0)/L
         zol2=zol(I,J)*(2.+znt(I,J))/ZA     ! (2+z0)/L
@@ -1325,9 +1329,13 @@ CONTAINS
       real    :: rzol, psim_stable
       real, intent(in)    :: zolf
 
+        if(abs(zolf*100.) .ge. 999.)then
+           psim_stable = psim_stable_full(zolf)
+           return
+        endif
         nzol = int(zolf*100.)
         rzol = zolf*100. - nzol
-        if(nzol+1 .lt. 1000)then
+        if(nzol .ge. 0 .and. nzol+1 .le. 1000)then
            psim_stable = psim_stab(nzol) + rzol*(psim_stab(nzol+1)-psim_stab(nzol))
         else
            psim_stable = psim_stable_full(zolf)
@@ -1341,25 +1349,33 @@ CONTAINS
       real    :: rzol, psih_stable
       real, intent(in)    :: zolf
 
+        if(abs(zolf*100.) .ge. 999.)then
+           psih_stable = psih_stable_full(zolf)
+           return
+        endif
         nzol = int(zolf*100.)
         rzol = zolf*100. - nzol
-        if(nzol+1 .lt. 1000)then
+        if(nzol .ge. 0 .and. nzol+1 .le. 1000)then
            psih_stable = psih_stab(nzol) + rzol*(psih_stab(nzol+1)-psih_stab(nzol))
         else
            psih_stable = psih_stable_full(zolf)
         endif
       return
       end function
-      
+
       function psim_unstable(zolf)
       !$acc routine seq
       integer :: nzol
       real    :: rzol, psim_unstable
       real, intent(in)    :: zolf
-      
+
+        if(abs(zolf*100.) .ge. 999.)then
+           psim_unstable = psim_unstable_full(zolf)
+           return
+        endif
         nzol = int(-zolf*100.)
         rzol = -zolf*100. - nzol
-        if(nzol+1 .lt. 1000)then
+        if(nzol .ge. 0 .and. nzol+1 .le. 1000)then
            psim_unstable = psim_unstab(nzol) + rzol*(psim_unstab(nzol+1)-psim_unstab(nzol))
         else
            psim_unstable = psim_unstable_full(zolf)
@@ -1372,10 +1388,14 @@ CONTAINS
       integer :: nzol
       real    :: rzol, psih_unstable
       real, intent(in)    :: zolf
-      
+
+        if(abs(zolf*100.) .ge. 999.)then
+           psih_unstable = psih_unstable_full(zolf)
+           return
+        endif
         nzol = int(-zolf*100.)
         rzol = -zolf*100. - nzol
-        if(nzol+1 .lt. 1000)then
+        if(nzol .ge. 0 .and. nzol+1 .le. 1000)then
            psih_unstable = psih_unstab(nzol) + rzol*(psih_unstab(nzol+1)-psih_unstab(nzol))
         else
            psih_unstable = psih_unstable_full(zolf)
