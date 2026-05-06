@@ -2960,11 +2960,13 @@
 !           colch4(lay) = 0._rb
 !           colo2(lay) = 0._rb
 !           colmol(lay) = 0._rb
+         if (colh2o(lay) .le. 0._rb) colh2o(lay) = 1.e-32_rb * coldry(lay)
          if (colco2(lay) .le. 0._rb) colco2(lay) = 1.e-32_rb * coldry(lay)
          if (colo3(lay) .le. 0._rb) colo3(lay) = 1.e-32_rb * coldry(lay)
          if (coln2o(lay) .le. 0._rb) coln2o(lay) = 1.e-32_rb * coldry(lay)
          if (colch4(lay) .le. 0._rb) colch4(lay) = 1.e-32_rb * coldry(lay)
          if (colo2(lay) .le. 0._rb) colo2(lay) = 1.e-32_rb * coldry(lay)
+         colmol(lay) = 1.e-20_rb * coldry(lay) + colh2o(lay)
 ! Using E = 1334.2 cm-1.
          co2reg = 3.55e-24_rb * coldry(lay)
          co2mult(lay)= (colco2(lay) - co2reg) * &
@@ -2990,12 +2992,13 @@
          coln2o(lay) = 1.e-20_rb * wkl(4,lay)
          colch4(lay) = 1.e-20_rb * wkl(6,lay)
          colo2(lay)  = 1.e-20_rb * wkl(7,lay)
-         colmol(lay) = 1.e-20_rb * coldry(lay) + colh2o(lay)
+         if (colh2o(lay) .le. 0._rb) colh2o(lay) = 1.e-32_rb * coldry(lay)
          if (colco2(lay) .le. 0._rb) colco2(lay) = 1.e-32_rb * coldry(lay)
          if (colo3(lay) .le. 0._rb) colo3(lay) = 1.e-32_rb * coldry(lay)
          if (coln2o(lay) .le. 0._rb) coln2o(lay) = 1.e-32_rb * coldry(lay)
          if (colch4(lay) .le. 0._rb) colch4(lay) = 1.e-32_rb * coldry(lay)
          if (colo2(lay)  .le. 0._rb) colo2(lay)  = 1.e-32_rb * coldry(lay)
+         colmol(lay) = 1.e-20_rb * coldry(lay) + colh2o(lay)
          co2reg = 3.55e-24_rb * coldry(lay)
          co2mult(lay)= (colco2(lay) - co2reg) * &
                272.63_rb*exp(-1919.4_rb/tavel(lay))/(8.7604e-4_rb*tavel(lay))
