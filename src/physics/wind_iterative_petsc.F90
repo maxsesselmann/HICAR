@@ -33,6 +33,7 @@ module wind_iterative_petsc
     real, parameter::deg2rad=0.017453293 !2*pi/360
     real, parameter :: rad2deg=57.2957779371
     logical :: initialized = .False.
+    logical :: use_amg = .False.
 
     real, allocatable, dimension(:,:,:) :: A_coef, B_coef, C_coef, D_coef, E_coef, F_coef, G_coef, H_coef, I_coef, &
                                            J_coef, K_coef, L_coef, M_coef, N_coef, O_coef
@@ -1051,12 +1052,14 @@ contains
         call KSPCreate(domain%compute_comms%MPI_VAL,ksp(i),ierr)
         call KSPSetType(ksp(i),KSPPIPEGCR,ierr) !KSPPIPEGCR <-- this one tested to give fastest convergence...
                                         !KSPFBCGS <-- this one used previously...
-        
+
         ! ! Reuse previous solution as initial guess to reduce iterations
         ! call KSPSetInitialGuessNonzero(ksp(i), PETSC_TRUE, ierr)
         call KSPSetFromOptions(ksp(i),ierr)
         call KSPGetPC(ksp(i),precond,ierr)
         call KSPSetReusePreconditioner(ksp(i),PETSC_FALSE,ierr)
+        ! Default ILU settings on the default PC (original behavior).
+        ! For high-res nests (dz < 1m), init_iter_winds_petsc overrides with BoomerAMG.
         call PCFactorSetUseInPlace(precond,PETSC_TRUE,ierr)
         call PCFactorSetReuseOrdering(precond,PETSC_TRUE,ierr)
 
@@ -1081,6 +1084,8 @@ contains
         PetscErrorCode ierr
         PetscBool :: has_cuda
         ISLocalToGlobalMapping isltog
+        type(tPC) precond
+        real :: min_dz
 
         ! call finalize routine to deallocate any arrays that are already allocated. 
         ! This would only occur if another nest was using this module previously. 
@@ -1096,14 +1101,35 @@ contains
 
         call init_module_vars(domain)
 
+        ! Determine preconditioner based on minimum vertical layer thickness.
+        ! Ultra-thin layers (dz < 1m) create extreme coefficient variation that
+        ! single-level ILU cannot handle; use algebraic multigrid (BoomerAMG) instead.
+        min_dz = minval(domain%vars_3d(domain%var_indx(kVARS%advection_dz)%v)%data_3d( &
+                        domain%its:domain%ite, :, domain%jts:domain%jte))
+        use_amg = (min_dz < 1.0)
+        if (STD_OUT_PE) then
+            if (use_amg) then
+                write(*,'(A,I2,A,F8.3,A)') '     Nest ', domain%nest_indx, &
+                    ': min dz = ', min_dz, ' m (< 1.0m) -> using BoomerAMG preconditioner'
+            else
+                write(*,'(A,I2,A,F8.3,A)') '     Nest ', domain%nest_indx, &
+                    ': min dz = ', min_dz, ' m (>= 1.0m) -> using ILU preconditioner'
+            endif
+        endif
+
         one = 1
 
         call DMDACreate3d(domain%compute_comms%MPI_VAL,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,DMDA_STENCIL_BOX, &
                           (domain%ide+2),(domain%kde+2),(domain%jde+2),domain%grid%ximages,one,domain%grid%yimages,one,one, &
                           xl, PETSC_NULL_INTEGER_ARRAY ,yl,da,ierr)
 
-        
-        call DMSetMatType(da,MATIS,ierr)
+        ! MATAIJ: standard distributed CSR, compatible with all PCs including AMG.
+        ! MATIS: per-subdomain local matrices, used with ILU (applies to local submatrix).
+        if (use_amg) then
+            call DMSetMatType(da,MATAIJ,ierr)
+        else
+            call DMSetMatType(da,MATIS,ierr)
+        endif
         call DMSetFromOptions(da,ierr)
         call DMSetUp(da,ierr)
 
@@ -1113,8 +1139,20 @@ contains
         call DMCreateGlobalVector(da,b,ierr)
         call DMCreateMatrix(da,arr_A,ierr)
 
-        call DMGetLocalToGlobalMapping(da,isltog,ierr)
-        call MatSetLocalToGlobalMapping(arr_A,isltog,isltog,ierr)
+        ! L2G mapping needed for MATIS format; conflicts with MATAIJ + BoomerAMG
+        if (.not. use_amg) then
+            call DMGetLocalToGlobalMapping(da,isltog,ierr)
+            call MatSetLocalToGlobalMapping(arr_A,isltog,isltog,ierr)
+        endif
+
+        ! Override preconditioner for high-res nests only.
+        ! ILU is the default (set in ksp_setup on the default PC).
+        ! Only BoomerAMG requires explicit PCSetType to override.
+        if (use_amg) then
+            call KSPGetPC(ksp(domain%nest_indx), precond, ierr)
+            call PCSetType(precond, PCHYPRE, ierr)
+            call PCHYPRESetType(precond, 'boomeramg', ierr)
+        endif
 
     end subroutine
 
