@@ -78,7 +78,7 @@ integer :: &
   tt,                &! Iteration counter for physics
   n                   ! Iteration counter in energy balance calulation
 
-call RADIATIONNN(alb,SWsrf,SWveg,Sdirt,Sdift,asrf_out,SWsci,LWt)
+call RADIATION(alb,SWsrf,SWveg,Sdirt,Sdift,asrf_out,SWsci,LWt)
 
 call THERMAL(csoil,Ds1,gs1,ks1,ksnow,ksoil,Ts1,Tveg0)
 

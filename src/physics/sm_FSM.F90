@@ -405,6 +405,17 @@ contains
             Sliq(i,:,:) = TRANSPOSE(domain%vars_3d(domain%var_indx(kVARS%Sliq)%v)%data_3d(its:ite,i,jts:jte))
             Ds(i,:,:) = TRANSPOSE(domain%vars_3d(domain%var_indx(kVARS%Ds)%v)%data_3d(its:ite,i,jts:jte))
         enddo
+        ! Re-read soil state from domain every step so FSM uses current values
+        ! from noahmp_soil_only (not stale values from initialization/restart).
+        ! Without this, FSM's writeback at line ~542 overwrites NoahMP's evolved
+        ! soil_water_content with a stale theta, causing SLW > SM inconsistency
+        ! and phantom water in NoahMP's water budget check.
+        !$acc update host(domain%vars_3d(domain%var_indx(kVARS%soil_temperature)%v)%data_3d, &
+        !$acc& domain%vars_3d(domain%var_indx(kVARS%soil_water_content)%v)%data_3d)
+        do i=1,kSOIL_GRID_Z
+            Tsoil(i,:,:) = TRANSPOSE(domain%vars_3d(domain%var_indx(kVARS%soil_temperature)%v)%data_3d(its:ite,i,jts:jte))
+            theta(i,:,:) = TRANSPOSE(domain%vars_3d(domain%var_indx(kVARS%soil_water_content)%v)%data_3d(its:ite,i,jts:jte))
+        enddo
 
         call exch_FSM_state_vars(domain,corners_in=.True.)
 
