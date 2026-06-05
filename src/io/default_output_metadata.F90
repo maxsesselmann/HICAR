@@ -374,7 +374,8 @@ contains
         else if (var_idx==kVARS%water_vapor) then
             var_meta%name        = "qv"
             var_meta%maxval      = 0.1
-            var_meta%minval      = -1e-10
+            var_meta%minval      = -1e-3
+            var_meta%warnval     = -1e-10
             var_meta%dimensions  = three_d_t_dimensions
             var_meta%attributes  = [attribute_t("standard_name", "mass_fraction_of_water_vapor_in_air"), &
                                attribute_t("long_name",     "Water Vapor Mixing Ratio"),            &

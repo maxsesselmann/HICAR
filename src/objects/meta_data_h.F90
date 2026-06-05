@@ -23,8 +23,9 @@ module meta_data_interface
 
         integer :: xstag = 0
         integer :: ystag = 0
-        real    :: maxval = kUNSET_REAL   
+        real    :: maxval = kUNSET_REAL
         real    :: minval = kUNSET_REAL
+        real    :: warnval = kUNSET_REAL  ! Soft warning threshold (non-fatal)
         integer, allocatable :: dim_len(:)
         integer, allocatable :: global_dim_len(:)
 

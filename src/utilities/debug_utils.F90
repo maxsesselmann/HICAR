@@ -198,6 +198,12 @@ contains
                     enddo
                 enddo outer2
             endif
+        else if (var%warnval /= kUNSET_REAL .and. vmin < var%warnval) then
+            ! Soft warning: value is below warning threshold but above fatal threshold.
+            ! This is non-fatal — prints a diagnostic but does not set err_flag.
+            write(*,*) "SOFT WARNING: "//trim(name)//" below warn threshold "// &
+                        trim(str(var%warnval))//" : min = "//trim(str(vmin))//" on PE "//trim(str(PE_rank_global))
+            call flush(output_unit)
         endif
 
         if (err_flag) then
@@ -231,6 +237,73 @@ contains
         endif
 
     end subroutine check_var
+
+    !>------------------------------------------------------------
+    !! Lightweight NaN-only check for crash-critical variables.
+    !! Runs unconditionally (not gated by debug flag).
+    !! On NaN: prints variable, location, PE rank, writes debug
+    !! .nc file, and error stops immediately.
+    !!
+    !! Checked variables (the ones that cause downstream crashes):
+    !!   pressure, potential_temperature, water_vapor,
+    !!   density, u, v, w
+    !!------------------------------------------------------------
+    subroutine nan_stop(domain, label)
+        implicit none
+        type(domain_t),   intent(in) :: domain
+        character(len=*), intent(in) :: label
+
+        if (domain%var_indx(kVARS%pressure)%v > 0) &
+            call nan_stop_arr(domain%vars_3d(domain%var_indx(kVARS%pressure)%v)%data_3d, &
+                              "pressure", label)
+        if (domain%var_indx(kVARS%potential_temperature)%v > 0) &
+            call nan_stop_arr(domain%vars_3d(domain%var_indx(kVARS%potential_temperature)%v)%data_3d, &
+                              "potential_temperature", label)
+        if (domain%var_indx(kVARS%water_vapor)%v > 0) &
+            call nan_stop_arr(domain%vars_3d(domain%var_indx(kVARS%water_vapor)%v)%data_3d, &
+                              "water_vapor", label)
+        if (domain%var_indx(kVARS%density)%v > 0) &
+            call nan_stop_arr(domain%vars_3d(domain%var_indx(kVARS%density)%v)%data_3d, &
+                              "density", label)
+        if (domain%var_indx(kVARS%u)%v > 0) &
+            call nan_stop_arr(domain%vars_3d(domain%var_indx(kVARS%u)%v)%data_3d, &
+                              "u", label)
+        if (domain%var_indx(kVARS%v)%v > 0) &
+            call nan_stop_arr(domain%vars_3d(domain%var_indx(kVARS%v)%v)%data_3d, &
+                              "v", label)
+        if (domain%var_indx(kVARS%w)%v > 0) &
+            call nan_stop_arr(domain%vars_3d(domain%var_indx(kVARS%w)%v)%data_3d, &
+                              "w", label)
+    end subroutine nan_stop
+
+    subroutine nan_stop_arr(arr, varname, label)
+        implicit none
+        real,             intent(in) :: arr(:,:,:)
+        character(len=*), intent(in) :: varname, label
+        integer :: i, j, k, pe
+        character(len=256) :: fname
+
+        if (.not. any(ieee_is_nan(arr))) return
+
+        pe = get_mpi_global_rank()
+        ! Find and report the first NaN
+        do j = lbound(arr,3), ubound(arr,3)
+            do k = lbound(arr,2), ubound(arr,2)
+                do i = lbound(arr,1), ubound(arr,1)
+                    if (ieee_is_nan(arr(i,k,j))) then
+                        write(*,'(A,A,A,A,A,I6,A,I4,A,I6,A,I4)') &
+                            "NaN_STOP [", trim(label), "] ", trim(varname), &
+                            " at i=", i, " k=", k, " j=", j, " PE=", pe
+                        flush(output_unit)
+                        call execute_command_line('mkdir -p debug', wait=.true.)
+                        fname = 'debug/'//trim(varname)//'_nan_'//trim(str(pe))//'.nc'
+                        call io_write(trim(fname), trim(varname), arr)
+                        error stop "NaN in critical variable"
+                    endif
+                enddo
+            enddo
+        enddo
+    end subroutine nan_stop_arr
 
     !>------------------------------------------------------------
     !! Simple error handling for common netcdf file errors

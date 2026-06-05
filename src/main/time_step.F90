@@ -22,12 +22,12 @@ module time_step
     use wind,                       only : balance_uvw, update_winds, update_wind_dqdt
     use domain_interface,           only : domain_t
     use options_interface,          only : options_t
-    use debug_module,               only : domain_check
+    use debug_module,               only : domain_check, nan_stop
     use time_object,                only : Time_type
     use time_delta_object,          only : time_delta_t
     use icar_constants,             only : STD_OUT_PE, kVARS
+    use ieee_arithmetic,            only : ieee_is_nan
     use snow_drift,                 only : snow_drift_step
-
     implicit none
 
     private
@@ -318,10 +318,14 @@ contains
                  remaining_step_seconds > domain%dt) .or. &
                 options%wind%wind_only) then
 
+                call nan_stop(domain, "before update_winds")
+                if (options%general%debug) call domain_check(domain, "before update_winds")
                 call domain%wind_timer%start()
                 call domain%halo%exch_var(domain%vars_3d(domain%var_indx(kVARS%density)%v),corners=.True.)
                 call update_winds(domain, options)
                 call domain%wind_timer%stop()
+                call nan_stop(domain, "after update_winds")
+                if (options%general%debug) call domain_check(domain, "after update_winds")
 
                 !Now that new winds have been calculated, get new time step in seconds, and see if they require adapting the time step
                 ! Note that there will currently be some discrepancy between using the current density and whatever density will be at 
@@ -361,9 +365,32 @@ contains
             endif
             
             ! ! apply/update boundary conditions including internal wind and pressure changes.
+            ! Debug: check dqdt arrays for NaN before applying forcing
+            block
+                integer :: dbg_pe, dbg_vi
+                dbg_pe = -1
+                call MPI_Comm_Rank(domain%compute_comms, dbg_pe, dbg_vi)
+                dbg_vi = domain%var_indx(kVARS%potential_temperature)%v
+                if (dbg_vi > 0) then
+                    if (any(ieee_is_nan(domain%vars_3d(dbg_vi)%dqdt_3d))) then
+                        write(*,'(A,I4)') "NaN in potential_temperature DQDT before apply_forcing, PE=", dbg_pe
+                        error stop "NaN in theta dqdt before apply_forcing"
+                    endif
+                endif
+                dbg_vi = domain%var_indx(kVARS%pressure)%v
+                if (dbg_vi > 0) then
+                    if (any(ieee_is_nan(domain%vars_3d(dbg_vi)%dqdt_3d))) then
+                        write(*,'(A,I4)') "NaN in pressure DQDT before apply_forcing, PE=", dbg_pe
+                        error stop "NaN in pressure dqdt before apply_forcing"
+                    endif
+                endif
+            end block
             call domain%forcing_timer%start()
             call domain%apply_forcing(options,real(dt%seconds()))
             call domain%forcing_timer%stop()
+
+            call nan_stop(domain, "after apply_forcing")
+            if (options%general%debug) call domain_check(domain, "after apply_forcing")
 
             call domain%diagnostic_timer%start()
             call domain%diagnostic_update()
@@ -387,6 +414,7 @@ contains
 
                 call domain%rad_timer%start()
                 call rad(domain, options, real(dt%seconds()))
+                call nan_stop(domain, "after rad")
                 if (options%general%debug) call domain_check(domain, "rad(domain")
                 call domain%rad_timer%stop()
 
@@ -394,11 +422,13 @@ contains
                 call domain%lsm_timer%start()
                 call sfc(domain, options, real(dt%seconds()))!, halo=1)
                 call lsm(domain, options, real(dt%seconds()))!, halo=1)
+                call nan_stop(domain, "after sfc+lsm")
                 if (options%general%debug) call domain_check(domain, "lsm")
                 call domain%lsm_timer%stop()
 
                 call domain%pbl_timer%start()
                 call pbl(domain, options, real(dt%seconds()))!, halo=1)
+                call nan_stop(domain, "after pbl")
                 call domain%pbl_timer%stop()
 
                 call domain%ret_timer%start()
@@ -430,13 +460,14 @@ contains
                 call domain%lsm_timer%stop()
 
                 call integrate_physics_tendencies(domain, options, real(dt%seconds()))
+                call nan_stop(domain, "after integrate_physics")
+                if (options%general%debug) call domain_check(domain, "after integrate_physics_tendencies")
 
-                                
                 call domain%mp_timer%start()
                 call mp(domain, options, real(dt%seconds()))
                 if (options%general%debug) call domain_check(domain, "mp_halo")
                 call domain%mp_timer%stop()
-                
+                call nan_stop(domain, "after mp")
 
             endif
             ! step model_time forward
@@ -457,8 +488,11 @@ contains
         real,               intent(in)      :: dt
 
         call rad_apply_dtheta(domain, options, dt)
+        call nan_stop(domain, "after rad_apply_dtheta")
         call lsm_apply_fluxes(domain,options,dt)
+        call nan_stop(domain, "after lsm_apply_fluxes")
         call pbl_apply_tend(domain,options,dt)
+        call nan_stop(domain, "after pbl_apply_tend")
         call snow_drift_apply_feedback(domain, options, dt)
 
     end subroutine integrate_physics_tendencies

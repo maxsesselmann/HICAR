@@ -398,6 +398,7 @@ contains
         this%dim_len = var_meta%dim_len
         this%maxval = var_meta%maxval
         this%minval = var_meta%minval
+        this%warnval = var_meta%warnval
 
         ! this%global_dim_len = var_meta%global_dim_len
         ! this%dim_ids = var_meta%dim_ids
