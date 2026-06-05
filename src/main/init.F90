@@ -366,6 +366,9 @@ contains
         if (options%restart%restart) then
             if (STD_OUT_PE) write(*,*) "Reading restart data"
             call ioclient%receive_rst(domain, options)
+            ! Re-snapshot pressure base arrays from post-restart state so that
+            ! apply_forcing's direct-computation formula uses correct base values
+            call domain%reset_pressure_base()
             ! Bcast restart_dt here, BEFORE update_nest below. Otherwise the
             ! client's update_nest Isend+Wait crosses the server's bcast in
             ! wake_component (which sits ahead of the matching Irecv in
