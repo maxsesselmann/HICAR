@@ -1209,6 +1209,14 @@ CONTAINS
       integer :: iter
 
 !
+!     For small |ri|, the secant method cannot resolve the tiny root
+!     in float32. Use the neutral-limit approximation zol = ri*ln((z+z0)/z0)
+!     which is accurate to machine precision for |ri| < 1e-4.
+      if (abs(ri) .lt. 1.e-4) then
+        zolri = ri * log((z+z0)/z0)
+        return
+      endif
+!
       if (ri.lt.0.)then
         x1=-5.
         x2=0.
@@ -1263,7 +1271,11 @@ CONTAINS
       psih2=log((z+z0)/z0)-(psih_stable(zol3)-psih_stable(zol20))
       endif
 !
-      zolri2=zol2*psih2/psix2**2-ri2
+      if(abs(psix2) .lt. 1.e-10) then
+        zolri2 = -ri2
+      else
+        zolri2=zol2*psih2/psix2**2-ri2
+      endif
 !
       return
       end function
@@ -1327,9 +1339,13 @@ CONTAINS
       real    :: rzol, psim_stable
       real, intent(in)    :: zolf
 
+        if (zolf /= zolf) then   ! NaN guard
+           psim_stable = 0.
+           return
+        endif
         nzol = int(zolf*100.)
         rzol = zolf*100. - nzol
-        if(nzol+1 .lt. 1000)then
+        if(nzol .ge. 0 .and. nzol+1 .lt. 1000)then
            psim_stable = psim_stab(nzol) + rzol*(psim_stab(nzol+1)-psim_stab(nzol))
         else
            psim_stable = psim_stable_full(zolf)
@@ -1343,25 +1359,33 @@ CONTAINS
       real    :: rzol, psih_stable
       real, intent(in)    :: zolf
 
+        if (zolf /= zolf) then   ! NaN guard
+           psih_stable = 0.
+           return
+        endif
         nzol = int(zolf*100.)
         rzol = zolf*100. - nzol
-        if(nzol+1 .lt. 1000)then
+        if(nzol .ge. 0 .and. nzol+1 .lt. 1000)then
            psih_stable = psih_stab(nzol) + rzol*(psih_stab(nzol+1)-psih_stab(nzol))
         else
            psih_stable = psih_stable_full(zolf)
         endif
       return
       end function
-      
+
       function psim_unstable(zolf)
       !$acc routine seq
       integer :: nzol
       real    :: rzol, psim_unstable
       real, intent(in)    :: zolf
-      
+
+        if (zolf /= zolf) then   ! NaN guard
+           psim_unstable = 0.
+           return
+        endif
         nzol = int(-zolf*100.)
         rzol = -zolf*100. - nzol
-        if(nzol+1 .lt. 1000)then
+        if(nzol .ge. 0 .and. nzol+1 .lt. 1000)then
            psim_unstable = psim_unstab(nzol) + rzol*(psim_unstab(nzol+1)-psim_unstab(nzol))
         else
            psim_unstable = psim_unstable_full(zolf)
@@ -1374,10 +1398,14 @@ CONTAINS
       integer :: nzol
       real    :: rzol, psih_unstable
       real, intent(in)    :: zolf
-      
+
+        if (zolf /= zolf) then   ! NaN guard
+           psih_unstable = 0.
+           return
+        endif
         nzol = int(-zolf*100.)
         rzol = -zolf*100. - nzol
-        if(nzol+1 .lt. 1000)then
+        if(nzol .ge. 0 .and. nzol+1 .lt. 1000)then
            psih_unstable = psih_unstab(nzol) + rzol*(psih_unstab(nzol+1)-psih_unstab(nzol))
         else
            psih_unstable = psih_unstable_full(zolf)

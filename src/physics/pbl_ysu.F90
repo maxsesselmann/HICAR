@@ -855,7 +855,11 @@ contains
    do i = its,ite
      fm = psim(i)
      fh = psih(i)
-     zol1(i) = max(br(i)*fm*fm/fh,rimin)
+     if(abs(fh).lt.1.e-6) then
+       zol1(i) = 0.
+     else
+       zol1(i) = max(br(i)*fm*fm/fh,rimin)
+     endif
      if(sfcflg(i))then
        zol1(i) = min(zol1(i),-zfmin)
      else
@@ -1617,6 +1621,9 @@ contains
 !-------------------------------------------------------------------------------
    subroutine tridi2n(cl,cm,cm1,cu,r1,r2,au,f1,f2,its,ite,kts,kte,nt)
 !-------------------------------------------------------------------------------
+!  Double-precision Thomas algorithm for momentum (two matrix systems, cm/cm1).
+!  Uses real(8) for pivot and accumulation; single-precision I/O arrays.
+!-------------------------------------------------------------------------------
    implicit none
 !-------------------------------------------------------------------------------
 !
@@ -1639,7 +1646,7 @@ contains
    real, dimension( its:ite, kts:kte,nt )                                    , &
          intent(inout)  ::                                                 f2
 !
-   real    :: fk
+   real(8) :: fk_d, denom
    integer :: i,k,l,n,it
 !
 !-------------------------------------------------------------------------------
@@ -1648,44 +1655,48 @@ contains
    n = kte
 !
    do i = its,l
-     fk = 1./cm(i,1)
-     au(i,1) = fk*cu(i,1)
-     f1(i,1) = fk*r1(i,1)
+     fk_d = 1.0d0/dble(cm(i,1))
+     au(i,1) = real(fk_d*dble(cu(i,1)))
+     f1(i,1) = real(fk_d*dble(r1(i,1)))
    enddo
 !
    do it = 1,nt
      do i = its,l
-       fk = 1./cm1(i,1)
-       f2(i,1,it) = fk*r2(i,1,it)
+       fk_d = 1.0d0/dble(cm1(i,1))
+       f2(i,1,it) = real(fk_d*dble(r2(i,1,it)))
      enddo
    enddo
 
    do k = kts+1,n-1
      do i = its,l
-       fk = 1./(cm(i,k)-cl(i,k)*au(i,k-1))
-       au(i,k) = fk*cu(i,k)
-       f1(i,k) = fk*(r1(i,k)-cl(i,k)*f1(i,k-1))
+       denom = dble(cm(i,k))-dble(cl(i,k))*dble(au(i,k-1))
+       fk_d = 1.0d0/denom
+       au(i,k) = real(fk_d*dble(cu(i,k)))
+       f1(i,k) = real(fk_d*(dble(r1(i,k))-dble(cl(i,k))*dble(f1(i,k-1))))
      enddo
    enddo
 !
    do it = 1,nt
      do k = kts+1,n-1
        do i = its,l
-         fk = 1./(cm1(i,k)-cl(i,k)*au(i,k-1))
-         f2(i,k,it) = fk*(r2(i,k,it)-cl(i,k)*f2(i,k-1,it))
+         denom = dble(cm1(i,k))-dble(cl(i,k))*dble(au(i,k-1))
+         fk_d = 1.0d0/denom
+         f2(i,k,it) = real(fk_d*(dble(r2(i,k,it))-dble(cl(i,k))*dble(f2(i,k-1,it))))
        enddo
      enddo
    enddo
 !
    do i = its,l
-     fk = 1./(cm(i,n)-cl(i,n)*au(i,n-1))
-     f1(i,n) = fk*(r1(i,n)-cl(i,n)*f1(i,n-1))
+     denom = dble(cm(i,n))-dble(cl(i,n))*dble(au(i,n-1))
+     fk_d = 1.0d0/denom
+     f1(i,n) = real(fk_d*(dble(r1(i,n))-dble(cl(i,n))*dble(f1(i,n-1))))
    enddo
 !
    do it = 1,nt
      do i = its,l
-       fk = 1./(cm1(i,n)-cl(i,n)*au(i,n-1))
-       f2(i,n,it) = fk*(r2(i,n,it)-cl(i,n)*f2(i,n-1,it))
+       denom = dble(cm1(i,n))-dble(cl(i,n))*dble(au(i,n-1))
+       fk_d = 1.0d0/denom
+       f2(i,n,it) = real(fk_d*(dble(r2(i,n,it))-dble(cl(i,n))*dble(f2(i,n-1,it))))
      enddo
    enddo
 !
@@ -1709,6 +1720,9 @@ contains
 !-------------------------------------------------------------------------------
    subroutine tridin_ysu(cl,cm,cu,r2,au,f2,its,ite,kts,kte,nt)
 !-------------------------------------------------------------------------------
+!  Double-precision Thomas algorithm to prevent overflow/NaN with thin layers.
+!  Uses real(8) for pivot and accumulation; single-precision I/O arrays.
+!-------------------------------------------------------------------------------
    implicit none
 !-------------------------------------------------------------------------------
 !
@@ -1728,7 +1742,7 @@ contains
    real, dimension( its:ite, kts:kte,nt )                                    , &
          intent(inout)  ::                                                 f2
 !
-   real    :: fk
+   real(8) :: fk_d, denom
    integer :: i,k,l,n,it
 !
 !-------------------------------------------------------------------------------
@@ -1738,9 +1752,9 @@ contains
 !
    do it = 1,nt
      do i = its,l
-       fk = 1./cm(i,1)
-       au(i,1) = fk*cu(i,1)
-       f2(i,1,it) = fk*r2(i,1,it)
+       fk_d = 1.0d0/dble(cm(i,1))
+       au(i,1) = real(fk_d*dble(cu(i,1)))
+       f2(i,1,it) = real(fk_d*dble(r2(i,1,it)))
      enddo
    enddo
 !
@@ -1750,17 +1764,19 @@ contains
     do k = kts+1,n-1
     !DIR$ NOVECTOR
        do i = its,l
-         fk = 1./(cm(i,k)-cl(i,k)*au(i,k-1))
-         au(i,k) = fk*cu(i,k)
-         f2(i,k,it) = fk*(r2(i,k,it)-cl(i,k)*f2(i,k-1,it))
+         denom = dble(cm(i,k))-dble(cl(i,k))*dble(au(i,k-1))
+         fk_d = 1.0d0/denom
+         au(i,k) = real(fk_d*dble(cu(i,k)))
+         f2(i,k,it) = real(fk_d*(dble(r2(i,k,it))-dble(cl(i,k))*dble(f2(i,k-1,it))))
        enddo
      enddo
    enddo
 !
    do it = 1,nt
      do i = its,l
-       fk = 1./(cm(i,n)-cl(i,n)*au(i,n-1))
-       f2(i,n,it) = fk*(r2(i,n,it)-cl(i,n)*f2(i,n-1,it))
+       denom = dble(cm(i,n))-dble(cl(i,n))*dble(au(i,n-1))
+       fk_d = 1.0d0/denom
+       f2(i,n,it) = real(fk_d*(dble(r2(i,n,it))-dble(cl(i,n))*dble(f2(i,n-1,it))))
      enddo
    enddo
 !
