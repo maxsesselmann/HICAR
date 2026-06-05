@@ -135,22 +135,19 @@ contains
                         ! matched within the grid
                         curweights=weights(hi%z(i,k,j),lo%z(i,curpos(1),j),lo%z(i,curpos(2),j))
                     elseif (curpos(1)==-1) then
-                        ! matched below the grid
+                        ! matched below the grid — extrapolate from lowest two levels
                         curpos(1)=1
-                        curpos(2)=1
-                        curweights=0.5
-                        
-                        !curpos(1)=1
-                        !curpos(2)=2
+                        curpos(2)=2
                         ! note that this will be > 1
-                        !curweights(1) = (lo%z(i,curpos(2),j)-hi%z(i,k,j)) / (lo%z(i,curpos(2),j)-lo%z(i,curpos(1),j))
+                        curweights(1) = (lo%z(i,curpos(2),j)-hi%z(i,k,j)) / (lo%z(i,curpos(2),j)-lo%z(i,curpos(1),j))
                         ! note that this will be < 0 providing a bilinear extrapolation
-                        !curweights(2) = 1-curweights(1)
+                        curweights(2) = 1-curweights(1)
                     elseif (curpos(1)==-2) then
-                        ! matched above the grid
-                        curpos(1)=lo_nz
+                        ! matched above the grid — extrapolate from highest two levels
+                        curpos(1)=lo_nz-1
                         curpos(2)=lo_nz
-                        curweights=0.5
+                        curweights(2) = (hi%z(i,k,j)-lo%z(i,curpos(1),j)) / (lo%z(i,curpos(2),j)-lo%z(i,curpos(1),j))
+                        curweights(1) = 1-curweights(2)
                     else
                         write(*,*) "find_match Failed to return appropriate position"
                         write(*,*) " at grid location:"
