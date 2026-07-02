@@ -406,6 +406,14 @@ contains
             Ds(i,:,:) = TRANSPOSE(domain%vars_3d(domain%var_indx(kVARS%Ds)%v)%data_3d(its:ite,i,jts:jte))
         enddo
 
+        ! Re-read soil state so FSM uses NoahMP's current values, not stale init data.
+        !$acc update host(domain%vars_3d(domain%var_indx(kVARS%soil_temperature)%v)%data_3d, &
+        !$acc& domain%vars_3d(domain%var_indx(kVARS%soil_water_content)%v)%data_3d)
+        do i=1,kSOIL_GRID_Z
+            Tsoil(i,:,:) = TRANSPOSE(domain%vars_3d(domain%var_indx(kVARS%soil_temperature)%v)%data_3d(its:ite,i,jts:jte))
+            theta(i,:,:) = TRANSPOSE(domain%vars_3d(domain%var_indx(kVARS%soil_water_content)%v)%data_3d(its:ite,i,jts:jte))
+        enddo
+
         call exch_FSM_state_vars(domain,corners_in=.True.)
 
         LW=TRANSPOSE(domain%vars_2d(domain%var_indx(kVARS%longwave)%v)%data_2d(its:ite,jts:jte))
