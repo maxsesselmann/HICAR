@@ -2507,7 +2507,7 @@ contains
                 description = "Flag to control if this is a restart run or not (T/F)"
                 default = '.False.'
                 group = "Restart"
-                type = 1
+                type = 3
             case ("override_check")
                 description = "Flag to override a stop on a failed comparison between a restart file and this namelist"
                 default = '.False.'
