@@ -392,6 +392,9 @@ contains
             call MPI_Comm_Size(ioclient%parent_comms, comm_size, ierr)
             call MPI_Bcast(domain%restart_dt, 1, MPI_REAL, comm_size-1, &
                            ioclient%parent_comms, ierr)
+            ! Re-snapshot pressure base arrays so apply_forcing's direct-computation
+            ! formula uses the post-restart pressure, not the pre-restart values.
+            call domain%reset_pressure_base()
         endif
 
         if (STD_OUT_PE) write(*,*) "Initializing physics"

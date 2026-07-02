@@ -24,8 +24,15 @@ submodule(domain_interface) domain_implementation
     use debug_module,       only : domain_check
 
     implicit none
-    
+
     real, parameter::deg2rad=0.017453293 !2*pi/360
+
+    ! Pressure base arrays for direct computation in apply_forcing.
+    ! Avoids float32 accumulation error when adding ~0.01 Pa/step to ~70000 Pa base.
+    real, allocatable, save :: p_var_base(:,:,:)   ! Domain pressure at start of forcing interval
+    real, allocatable, save :: p_fh_base(:,:,:)    ! Forcing history pressure at start of interval
+    double precision, save  :: p_elapsed = 0.0d0   ! Elapsed time since last forcing update
+
     ! primary public routines : init, get_initial_conditions, halo_send, halo_retrieve, or halo_exchange
 contains
 
@@ -3529,6 +3536,15 @@ contains
                               kme => this%vars_3d(this%var_indx(var_indx)%v)%grid%kme, &
                               jms => this%vars_3d(this%var_indx(var_indx)%v)%grid%jms, &
                               jme => this%vars_3d(this%var_indx(var_indx)%v)%grid%jme)
+                    ! Save pressure base values for direct computation in apply_forcing
+                    if (var_indx == kVARS%pressure) then
+                        if (allocated(p_var_base)) deallocate(p_var_base)
+                        if (allocated(p_fh_base)) deallocate(p_fh_base)
+                        allocate(p_var_base, source=v3d_data)
+                        allocate(p_fh_base, source=this%forcing_hi(n)%data_3d)
+                        p_elapsed = 0.0d0
+                    endif
+
                     !$acc parallel loop gang vector collapse(3) present(v3d_dqdt, v3d_data, ims, ime, kms, kme, jms, jme)
                     do j = jms, jme
                         do k = kms, kme
@@ -3671,20 +3687,39 @@ contains
                 ! only apply forcing data on the boundaries for advected scalars (e.g. temperature, humidity)
                 ! applying forcing to the edges has already been handeled when updating dqdt using the relaxation filter
                 if (.not.(this%forcing_hi(n)%force_boundaries)) then
-                    !$acc parallel loop gang vector collapse(3) present(var_data, var_dqdt, f_data, f_dqdt)
-                    do j = jms,jme
-                        do k = kms, kme
-                            do i = ims,ime
-                                f_data(i,k,j)    = f_data(i,k,j) + (f_dqdt(i,k,j) * dt)
-                                if (.not.(is_wind)) f_data(i,k,j) = max(f_data(i,k,j),0.0)
-
-                                if (.not.(is_w_real)) var_data(i,k,j) = var_data(i,k,j) + &
-                                                                (var_dqdt(i,k,j) * dt)
-
-                                if (.not.(is_wind)) var_data(i,k,j) = max(var_data(i,k,j),0.0)
+                    if (var_indx == kVARS%pressure .and. allocated(p_var_base)) then
+                        ! Direct computation from base value to avoid float32 accumulation error.
+                        ! Cumulative addition of ~0.01 Pa to ~70000 Pa in float32 introduces
+                        ! systematic rounding errors that destroy thin near-surface pressure gaps.
+                        p_elapsed = p_elapsed + dble(dt)
+                        block
+                        real :: p_elapsed_r
+                        p_elapsed_r = real(p_elapsed)
+                        do j = jms, jme
+                            do k = kms, kme
+                                do i = ims, ime
+                                    f_data(i,k,j) = p_fh_base(i,k,j) + (f_dqdt(i,k,j) * p_elapsed_r)
+                                    var_data(i,k,j) = p_var_base(i,k,j) + (var_dqdt(i,k,j) * p_elapsed_r)
+                                enddo
                             enddo
                         enddo
-                    enddo
+                        end block
+                    else
+                        !$acc parallel loop gang vector collapse(3) present(var_data, var_dqdt, f_data, f_dqdt)
+                        do j = jms,jme
+                            do k = kms, kme
+                                do i = ims,ime
+                                    f_data(i,k,j)    = f_data(i,k,j) + (f_dqdt(i,k,j) * dt)
+                                    if (.not.(is_wind)) f_data(i,k,j) = max(f_data(i,k,j),0.0)
+
+                                    if (.not.(is_w_real)) var_data(i,k,j) = var_data(i,k,j) + &
+                                                                    (var_dqdt(i,k,j) * dt)
+
+                                    if (.not.(is_wind)) var_data(i,k,j) = max(var_data(i,k,j),0.0)
+                                enddo
+                            enddo
+                        enddo
+                    endif
                 else if (do_boundary) then
                     !$acc parallel present(var_data, f_data, f_dqdt, relax_filter, ims_b, ime_b, jms_b, jme_b)
                     do p = 1,4
@@ -3728,6 +3763,28 @@ contains
         ! endif
 
 
+    end subroutine
+
+
+    !> Re-snapshot pressure base arrays from current domain state.
+    !! Must be called after restart data overwrites domain%pressure so that
+    !! apply_forcing's direct-computation formula uses the correct base values.
+    module subroutine reset_pressure_base(this)
+        implicit none
+        class(domain_t), intent(inout) :: this
+        integer :: n, var_indx
+
+        do n = 1, size(this%forcing_hi)
+            var_indx = this%forcing_hi(n)%id
+            if (var_indx == kVARS%pressure .and. this%forcing_hi(n)%three_d) then
+                if (allocated(p_var_base)) deallocate(p_var_base)
+                if (allocated(p_fh_base)) deallocate(p_fh_base)
+                allocate(p_var_base, source=this%vars_3d(this%var_indx(var_indx)%v)%data_3d)
+                allocate(p_fh_base, source=this%forcing_hi(n)%data_3d)
+                p_elapsed = 0.0d0
+                return
+            endif
+        enddo
     end subroutine
 
 
