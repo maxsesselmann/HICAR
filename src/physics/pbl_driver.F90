@@ -501,7 +501,8 @@ contains
         real, dimension(ims:ime, kms:kme, jms:jme), intent(in)    :: exch_h, rho, dz
         real, intent(in) :: dt_in
 
-        real    :: rho_int, dz_half, cddz_below, cddz_above, fk
+        real    :: rho_int, dz_half, cddz_below, cddz_above
+        real(8) :: fk_d, denom
         integer :: i2, j2, k2, kte_pbl
 
         kte_pbl = kte - 1   ! YSU operates on kts:kte-1
@@ -542,29 +543,30 @@ contains
         enddo
         !$acc end parallel
 
-        ! Step 2: Thomas algorithm forward elimination
+        ! Step 2: Thomas algorithm forward elimination (double-precision pivots)
         ! First level
         !$acc parallel present(trid_a, trid_b, trid_c, trid_rhs)
-        !$acc loop gang vector collapse(2) private(fk)
+        !$acc loop gang vector collapse(2) private(fk_d)
         do j2 = jts, jte
         do i2 = its, ite
-            fk = 1.0 / trid_b(i2,kts,j2)
-            trid_c(i2,kts,j2)   = fk * trid_c(i2,kts,j2)
-            trid_rhs(i2,kts,j2) = fk * trid_rhs(i2,kts,j2)
+            fk_d = 1.0d0 / dble(trid_b(i2,kts,j2))
+            trid_c(i2,kts,j2)   = real(fk_d * dble(trid_c(i2,kts,j2)))
+            trid_rhs(i2,kts,j2) = real(fk_d * dble(trid_rhs(i2,kts,j2)))
         enddo
         enddo
         !$acc end parallel
 
         ! Interior + top levels
         !$acc parallel present(trid_a, trid_b, trid_c, trid_rhs)
-        !$acc loop gang vector collapse(2) private(fk)
+        !$acc loop gang vector collapse(2) private(fk_d,denom)
         do j2 = jts, jte
         do i2 = its, ite
         !$acc loop seq
             do k2 = kts+1, kte_pbl
-                fk = 1.0 / (trid_b(i2,k2,j2) - trid_a(i2,k2,j2) * trid_c(i2,k2-1,j2))
-                trid_c(i2,k2,j2)   = fk * trid_c(i2,k2,j2)
-                trid_rhs(i2,k2,j2) = fk * (trid_rhs(i2,k2,j2) - trid_a(i2,k2,j2) * trid_rhs(i2,k2-1,j2))
+                denom = dble(trid_b(i2,k2,j2)) - dble(trid_a(i2,k2,j2)) * dble(trid_c(i2,k2-1,j2))
+                fk_d = 1.0d0 / denom
+                trid_c(i2,k2,j2)   = real(fk_d * dble(trid_c(i2,k2,j2)))
+                trid_rhs(i2,k2,j2) = real(fk_d * (dble(trid_rhs(i2,k2,j2)) - dble(trid_a(i2,k2,j2)) * dble(trid_rhs(i2,k2-1,j2))))
             enddo
         enddo
         enddo

@@ -1717,35 +1717,35 @@ endif !end if momentum tendency present
   real, dimension( its:ite, kts:kte, jts:jte )                                       , &
          intent(inout   )  ::                                              f1, f2, au
 
-   real    :: fk
+   real(8) :: fk_d, denom
    integer :: i,k,j,it
 !
 !-------------------------------------------------------------------------------
 !!
 !$acc data present(cl,cm,cu,r1,r2,au,f1,f2)
 !$acc parallel async(100)
-!$acc loop gang vector private(fk) collapse(2)
+!$acc loop gang vector private(fk_d) collapse(2)
   do j = jts,jte
    do i = its,ite
-     fk = 1./cm(i,1,j)
-     au(i,1,j) = fk*cu(i,1,j)
-     f1(i,1,j) = fk*r1(i,1,j)
-     f2(i,1,j) = fk*r2(i,1,j)
+     fk_d = 1.0d0/dble(cm(i,1,j))
+     au(i,1,j) = real(fk_d*dble(cu(i,1,j)))
+     f1(i,1,j) = real(fk_d*dble(r1(i,1,j)))
+     f2(i,1,j) = real(fk_d*dble(r2(i,1,j)))
    enddo
   enddo
 !$acc end parallel
 !
 !$acc parallel wait(100) async(101)
-!$acc loop gang vector private(fk) collapse(2)
+!$acc loop gang vector private(fk_d,denom) collapse(2)
   do j = jts,jte
    do i = its,ite
 !$acc loop seq
      do k = kts+1,kte-1
-       fk = 1./(cm(i,k,j)-cl(i,k,j)*au(i,k-1,j))
-       au(i,k,j) = fk*cu(i,k,j)
-       f1(i,k,j) = fk*(r1(i,k,j)-cl(i,k,j)*f1(i,k-1,j))
-       f2(i,k,j) = fk*(r2(i,k,j)-cl(i,k,j)*f2(i,k-1,j))
-
+       denom = dble(cm(i,k,j))-dble(cl(i,k,j))*dble(au(i,k-1,j))
+       fk_d = 1.0d0/denom
+       au(i,k,j) = real(fk_d*dble(cu(i,k,j)))
+       f1(i,k,j) = real(fk_d*(dble(r1(i,k,j))-dble(cl(i,k,j))*dble(f1(i,k-1,j))))
+       f2(i,k,j) = real(fk_d*(dble(r2(i,k,j))-dble(cl(i,k,j))*dble(f2(i,k-1,j))))
      enddo
    enddo
   enddo
@@ -1753,12 +1753,13 @@ endif !end if momentum tendency present
 !
 !
 !$acc parallel wait(101) async(102)
-!$acc loop gang vector private(fk) collapse(2)
+!$acc loop gang vector private(fk_d,denom) collapse(2)
   do j = jts,jte
    do i = its,ite
-     fk = 1./(cm(i,kte,j)-cl(i,kte,j)*au(i,kte-1,j))
-     f1(i,kte,j) = fk*(r1(i,kte,j)-cl(i,kte,j)*f1(i,kte-1,j))
-     f2(i,kte,j) = fk*(r2(i,kte,j)-cl(i,kte,j)*f2(i,kte-1,j))
+     denom = dble(cm(i,kte,j))-dble(cl(i,kte,j))*dble(au(i,kte-1,j))
+     fk_d = 1.0d0/denom
+     f1(i,kte,j) = real(fk_d*(dble(r1(i,kte,j))-dble(cl(i,kte,j))*dble(f1(i,kte-1,j))))
+     f2(i,kte,j) = real(fk_d*(dble(r2(i,kte,j))-dble(cl(i,kte,j))*dble(f2(i,kte-1,j))))
    enddo
   enddo
 !$acc end parallel
@@ -1804,7 +1805,7 @@ endif !end if momentum tendency present
    real, dimension( its:ite, kts:kte, jts:jte,nt )                                    , &
          intent(inout)  ::                                                 f2
 !
-   real    :: fk
+   real(8) :: fk_d, denom
    integer :: i,j,k,it
 !
 !-------------------------------------------------------------------------------
@@ -1812,28 +1813,29 @@ endif !end if momentum tendency present
 !
 !$acc data present(cl,cm,cu,r2,au,f2)
 !$acc parallel async(200)
-!$acc loop gang vector collapse(3) private(fk)
+!$acc loop gang vector collapse(3) private(fk_d)
    do it = 1,nt
      do j = jts,jte
        do i = its,ite
-         fk = 1./cm(i,1,j)
-         au(i,1,j) = fk*cu(i,1,j)
-         f2(i,1,j,it) = fk*r2(i,1,j,it)
+         fk_d = 1.0d0/dble(cm(i,1,j))
+         au(i,1,j) = real(fk_d*dble(cu(i,1,j)))
+         f2(i,1,j,it) = real(fk_d*dble(r2(i,1,j,it)))
        enddo
      enddo
    enddo
 !$acc end parallel
 !
 !$acc parallel async(200)
-!$acc loop gang vector collapse(3) private(fk)
+!$acc loop gang vector collapse(3) private(fk_d,denom)
    do it = 1,nt
     do j = jts,jte
      do i = its,ite
 !$acc loop seq
           do k = kts+1,kte-1
-            fk = 1./(cm(i,k,j)-cl(i,k,j)*au(i,k-1,j))
-            au(i,k,j) = fk*cu(i,k,j)
-            f2(i,k,j,it) = fk*(r2(i,k,j,it)-cl(i,k,j)*f2(i,k-1,j,it))
+            denom = dble(cm(i,k,j))-dble(cl(i,k,j))*dble(au(i,k-1,j))
+            fk_d = 1.0d0/denom
+            au(i,k,j) = real(fk_d*dble(cu(i,k,j)))
+            f2(i,k,j,it) = real(fk_d*(dble(r2(i,k,j,it))-dble(cl(i,k,j))*dble(f2(i,k-1,j,it))))
        enddo
      enddo
    enddo
@@ -1841,12 +1843,13 @@ endif !end if momentum tendency present
 !$acc end parallel
 !
 !$acc parallel async(200)
-!$acc loop gang vector collapse(3) private(fk)
+!$acc loop gang vector collapse(3) private(fk_d,denom)
    do it = 1,nt
      do j = jts,jte
      do i = its,ite
-       fk = 1./(cm(i,kte,j)-cl(i,kte,j)*au(i,kte-1,j))
-       f2(i,kte,j,it) = fk*(r2(i,kte,j,it)-cl(i,kte,j)*f2(i,kte-1,j,it))
+       denom = dble(cm(i,kte,j))-dble(cl(i,kte,j))*dble(au(i,kte-1,j))
+       fk_d = 1.0d0/denom
+       f2(i,kte,j,it) = real(fk_d*(dble(r2(i,kte,j,it))-dble(cl(i,kte,j))*dble(f2(i,kte-1,j,it))))
      enddo
    enddo
   enddo
