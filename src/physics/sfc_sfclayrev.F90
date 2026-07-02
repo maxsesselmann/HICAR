@@ -1209,6 +1209,14 @@ CONTAINS
       integer :: iter
 
 !
+!     For small |ri|, the secant method cannot resolve the tiny root
+!     in float32. Use the neutral-limit approximation zol = ri*ln((z+z0)/z0)
+!     which is accurate to machine precision for |ri| < 1e-4.
+      if (abs(ri) .lt. 1.e-4) then
+        zolri = ri * log((z+z0)/z0)
+        return
+      endif
+!
       if (ri.lt.0.)then
         x1=-5.
         x2=0.
